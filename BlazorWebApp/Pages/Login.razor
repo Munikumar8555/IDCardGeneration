@@ -1,0 +1,84 @@
+@page "/login"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using BlazorWebApp.Data
+@using BlazorWebApp.Services
+@using BlazorWebApp.Shared
+@inject IdDetailsDbContext DbContext
+@inject NavigationManager Navigation
+@inject UserSessionService UserSessionService
+
+<div class="custom-form-bg">
+    <div class="custom-form-container">
+        <h2 class="custom-form-title">Login</h2>
+        <EditForm Model="loginModel" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="custom-form-group">
+                <label>Email :</label>
+                <InputText class="custom-form-input" @bind-Value="loginModel.Email" />
+                <ValidationMessage For="@(() => loginModel.Email)" />
+            </div>
+            <div class="custom-form-group">
+                <label>Password :</label>
+                <InputText type="password" class="custom-form-input" @bind-Value="loginModel.Password" />
+                <ValidationMessage For="@(() => loginModel.Password)" />
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <a href="/register" class="custom-form-link">Don't have an account? Register</a>
+                <a href="/forgot-password" class="custom-form-link">Forgot password?</a>
+            </div>
+            <button type="submit" class="custom-form-btn">Login</button>
+        </EditForm>
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">@errorMessage</div>
+        }
+        <Toast Show="showToast" Message="@toastMessage" ToastType="@toastType" />
+    </div>
+</div>
+
+@code {
+    private LoginModel loginModel = new LoginModel();
+    private string errorMessage;
+    private bool showToast = false;
+    private string toastMessage = string.Empty;
+    private string toastType = "success";
+
+    private async Task HandleValidSubmit()
+    {
+        var user = DbContext.Registrations.FirstOrDefault(u => u.Email == loginModel.Email);
+        if (user != null && !string.IsNullOrEmpty(user.PasswordHash) && BCrypt.Net.BCrypt.Verify(loginModel.Password, user.PasswordHash))
+        {
+            await UserSessionService.SetCurrentUserEmailAsync(user.Email);
+            toastMessage = "Login successful!";
+            toastType = "success";
+            showToast = true;
+            StateHasChanged();
+            await Task.Delay(1500);
+            showToast = false;
+            StateHasChanged();
+            Navigation.NavigateTo("/nextpage");
+        }
+        else
+        {
+            toastMessage = "Invalid email or password.";
+            toastType = "error";
+            showToast = true;
+            StateHasChanged();
+            await Task.Delay(3000);
+            showToast = false;
+            StateHasChanged();
+        }
+    }
+
+    public class LoginModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; }
+        [Required]
+        public string Password { get; set; }
+    }
+}

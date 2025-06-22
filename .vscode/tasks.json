@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Create solution file and migrate to .NET 8 minimal hosting",
+			"command": "dotnet new sln -n BlazorWebApp && dotnet sln BlazorWebApp.sln add BlazorWebApp/BlazorWebApp.csproj && dotnet migrate BlazorWebApp/BlazorWebApp.csproj --tfm net8.0",
+			"group": "build"
+		}
+	]
+}

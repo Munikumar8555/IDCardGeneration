@@ -1,0 +1,372 @@
+@page "/nextpage"
+@using System
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using BlazorWebApp.Data
+@using System.IO
+@using System.Threading.Tasks
+@using BlazorWebApp.Services
+@using BlazorWebApp.Shared
+@using Microsoft.EntityFrameworkCore 
+@inject BlazorWebApp.Data.IdDetailsDbContext DbContext
+@inject Microsoft.AspNetCore.Components.NavigationManager Navigation
+@inject BlazorWebApp.Services.UserSessionService UserSessionService
+
+<!-- Tailwind & FontAwesome CDN -->
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+    .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+    @@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .success-message { animation: slideIn 0.5s ease-out; }
+    @@keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+</style>
+
+<!-- Centered full-screen wrapper -->
+<div class="bg-gray-100 min-h-screen flex items-center justify-center px-4">
+    <div class="w-full max-w-2xl py-8 animate-fade-in" style="margin-left:213px; margin-right:213px;">
+        <!-- Header with progress indicator -->
+        <div class="flex flex-col items-center mb-8">
+            <i class="fas fa-user-edit text-blue-500 text-3xl mb-2"></i>
+            <h1 class="text-2xl font-bold text-gray-800 mb-2">Complete Your Profile</h1>
+            <p class="text-gray-600 mb-4 text-center">Just a few more details to personalize your experience</p>
+            <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4">
+                <div class="bg-blue-600 h-2.5 rounded-full" style="width: 75%"></div>
+            </div>
+        </div>
+
+        @if (!showProfileDetails)
+        {
+            <!-- Profile Form -->
+            <EditForm Model="profileModel" OnValidSubmit="HandleValidSubmit">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                            <div class="relative">
+                                <InputText class="w-full px-1 py-1 bg-gray-100 rounded-lg border border-gray-300 text-gray-700 focus:outline-none" @bind-Value="profileModel.Name" disabled />
+                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <div class="relative">
+                                <InputText class="w-full px-1 py-1 bg-gray-100 rounded-lg border border-gray-300 text-gray-700 focus:outline-none" @bind-Value="profileModel.Email" disabled />
+                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                            <div class="relative">
+                                <InputText class="w-full px-1 py-1 bg-gray-100 rounded-lg border border-gray-300 text-gray-700 focus:outline-none" @bind-Value="profileModel.Number" disabled />
+                                <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Designation</label>
+                            <div class="relative">
+                                <InputText class="w-full px-1 py-1 rounded-lg border border-gray-300 focus:outline-none" @bind-Value="profileModel.Designation" placeholder="E.g. Software Engineer" />
+                                <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                </div>
+                            </div>
+                            <ValidationMessage For="@(() => profileModel.Designation)" class="mt-1 text-sm text-red-600" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                        <div class="relative">
+                            <InputText rows="3" class="w-full px-1 py-1 rounded-lg border border-gray-300 focus:outline-none" @bind-Value="profileModel.Address" placeholder="Enter your full address" />
+                            <div class="absolute top-3 right-3">
+                                <i class="fas fa-map-marker-alt text-gray-400"></i>
+                            </div>
+                        </div>
+                        <ValidationMessage For="@(() => profileModel.Address)" class="mt-1 text-sm text-red-600" />
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Profile Image</label>
+                        <InputFile OnChange="OnInputFileChange" />
+                        @if (profileModel.ProfileImagePreview != null)
+                        {
+                            <img src="@profileModel.ProfileImagePreview" alt="Profile Preview" class="mt-2 rounded-lg w-32 h-32 object-cover border" />
+                        }
+                    </div>
+
+                    <div class="flex items-center">
+                        <InputCheckbox id="terms" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" @bind-Value="termsAccepted" />
+                        <label for="terms" class="ml-2 block text-sm text-gray-700">
+                            I agree to the <a href="#" class="text-blue-600 hover:underline">Terms of Service</a> and <a href="#" class="text-blue-600 hover:underline">Privacy Policy</a>
+                        </label>
+                    </div>
+                    @if (termsError)
+                    {
+                        <p class="mt-1 text-sm text-red-600">You must agree to the terms to continue</p>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="success-message mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-check-circle text-green-500 text-2xl"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-green-800">@successMessage</h3>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <div class="mt-8">
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-2 rounded-lg transition duration-300 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Save Profile <i class="fas fa-save ml-2"></i>
+                    </button>
+                </div>
+            </EditForm>
+        }
+        else
+        {
+            <!-- Profile Details View -->
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-xl font-bold mb-4 text-center">Your Profile Details</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                    <div>
+                        <span class="font-semibold">Full Name:</span> @profileModel.Name
+                    </div>
+                    <div>
+                        <span class="font-semibold">Email:</span> @profileModel.Email
+                    </div>
+                    <div>
+                        <span class="font-semibold">Phone Number:</span> @profileModel.Number
+                    </div>
+                    <div>
+                        <span class="font-semibold">Designation:</span> @profileModel.Designation
+                    </div>
+                    <div class="md:col-span-2">
+                        <span class="font-semibold">Address:</span> @profileModel.Address
+                    </div>
+                    <div class="md:col-span-2">
+                        <span class="font-semibold">Profile Image:</span><br />
+                        @if (!string.IsNullOrEmpty(profileModel.ProfileImagePreview))
+                        {
+                            <img src="@profileModel.ProfileImagePreview" alt="Profile Preview" class="mt-2 rounded-lg w-32 h-32 object-cover border" />
+                        }
+                        else
+                        {
+                            <span class="text-gray-400">No image uploaded</span>
+                        }
+                    </div>
+                </div>
+                <div class="flex justify-center">
+                    <button class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition duration-300 ease-in-out" @onclick="ShowEditForm">
+                        <i class="fas fa-edit mr-2"></i>Edit
+                    </button>
+                </div>
+            </div>
+        }
+        <Toast Show="showToast" Message="@toastMessage" ToastType="@toastType" />
+    </div>
+</div>
+
+@code {
+    private ProfileModel profileModel = new ProfileModel();
+    private string successMessage;
+    private bool termsAccepted = false;
+    private bool termsError = false;
+    private bool showToast = false;
+    private string toastMessage = string.Empty;
+    private string toastType = "success";
+    private bool _disposed;
+    private bool showProfileDetails = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var email = await UserSessionService.GetCurrentUserEmailAsync();
+            if (!string.IsNullOrEmpty(email) && DbContext?.Registrations != null)
+            {
+                var user = DbContext.Registrations.FirstOrDefault(u => u.Email == email);
+                if (user != null)
+                {
+                    profileModel.Name = user.Name;
+                    profileModel.Email = user.Email;
+                    profileModel.Number = user.Number;
+                    profileModel.Address = user.Address;
+                    profileModel.Designation = user.Designation;
+
+                    // Always get the latest UserFile for the user (if exists)
+                    var userFile = DbContext.UserFiles
+                        .Where(f => f.RegistrationModelId == user.Id)
+                        .OrderByDescending(f => f.UploadedAt)
+                        .FirstOrDefault();
+                    if (userFile != null && userFile.Data != null)
+                    {
+                        profileModel.ProfileImage = userFile.Data;
+                        profileModel.ProfileImagePreview = $"data:{userFile.ContentType};base64,{Convert.ToBase64String(userFile.Data)}";
+                    }
+                    else if (user.ProfileImage != null)
+                    {
+                        profileModel.ProfileImage = user.ProfileImage;
+                        profileModel.ProfileImagePreview = $"data:image/png;base64,{Convert.ToBase64String(user.ProfileImage)}";
+                    }
+                    else
+                    {
+                        profileModel.ProfileImage = null;
+                        profileModel.ProfileImagePreview = null;
+                    }
+
+                    showProfileDetails =
+                        (!string.IsNullOrWhiteSpace(user.Address) ||
+                         !string.IsNullOrWhiteSpace(user.Designation) ||
+                         profileModel.ProfileImage != null);
+                }
+            }
+            else
+            {
+                successMessage = "Unable to load user data. Please try again later.";
+            }
+        }
+        catch (Exception ex)
+        {
+            successMessage = $"Error loading user data: {ex.Message}";
+        }
+        StateHasChanged();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _disposed = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        if (!termsAccepted)
+        {
+            termsError = true;
+            toastMessage = "You must agree to the terms to continue.";
+            toastType = "error";
+            showToast = true;
+            StateHasChanged();
+            await Task.Delay(3000);
+            showToast = false;
+            StateHasChanged();
+            return;
+        }
+        termsError = false;
+        try
+        {
+            var user = await DbContext.Registrations.FirstOrDefaultAsync(u => u.Email == profileModel.Email);
+            if (user != null)
+            {
+                user.Address = profileModel.Address;
+                user.Designation = profileModel.Designation;
+                if (profileModel.ProfileImage != null && profileModel.UploadedImageFile != null)
+                {
+                    // Check if a UserFile already exists for this user
+                    var existingFile = await DbContext.UserFiles.FirstOrDefaultAsync(f => f.RegistrationModelId == user.Id);
+                    if (existingFile != null )
+                    {
+                        existingFile.FileName = profileModel.UploadedImageFile.Name;
+                        existingFile.ContentType = profileModel.UploadedImageFile.ContentType;
+                        existingFile.Data = profileModel.ProfileImage;
+                        existingFile.UploadedAt = DateTime.UtcNow;
+                        existingFile.UploadedBy = user.Email;
+                    }
+                    else
+                    {
+                        var userFile = new BlazorWebApp.Data.UserFile
+                        {
+                            RegistrationModelId = user.Id,
+                            FileName = profileModel.UploadedImageFile.Name,
+                            ContentType = profileModel.UploadedImageFile.ContentType,
+                            Data = profileModel.ProfileImage,
+                            UploadedAt = DateTime.UtcNow,
+                            UploadedBy = user.Email
+                        };
+                        DbContext.UserFiles.Add(userFile);
+                    }
+                }
+                await DbContext.SaveChangesAsync();
+                toastMessage = "Profile updated successfully!";
+                toastType = "success";
+                showProfileDetails = true;
+            }
+            else
+            {
+                toastMessage = "User not found.";
+                toastType = "error";
+            }
+        }
+        catch (Exception ex)
+        {
+            toastMessage = $"Error updating profile: {ex.Message}";
+            toastType = "error";
+        }
+        showToast = true;
+        StateHasChanged();
+        await Task.Delay(3000);
+        showToast = false;
+        StateHasChanged();
+    }
+
+    private void ShowEditForm()
+    {
+        showProfileDetails = false;
+    }
+
+    private async void OnInputFileChange(InputFileChangeEventArgs e)
+    {
+        if (_disposed) return;
+        var file = e.File;
+        if (file != null)
+        {
+            profileModel.UploadedImageFile = file;
+            using var stream = file.OpenReadStream(1024 * 1024 * 5); // 5MB max
+            using var ms = new MemoryStream();
+            await stream.CopyToAsync(ms);
+            profileModel.ProfileImage = ms.ToArray();
+            // For preview
+            var buffer = new byte[file.Size];
+            await file.OpenReadStream().ReadAsync(buffer);
+            profileModel.ProfileImagePreview = $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer)}";
+            if (!_disposed) StateHasChanged();
+        }
+    }
+
+    public class ProfileModel
+    {
+        public string Name { get; set; }
+        public string Email { get; set; }
+        public string Number { get; set; }
+
+        [Required]
+        public string Address { get; set; }
+
+        [Required]
+        public string Designation { get; set; }
+
+        public string ProfileImagePreview { get; set; }
+        public IBrowserFile UploadedImageFile { get; set; }
+        public byte[] ProfileImage { get; set; }
+    }
+}

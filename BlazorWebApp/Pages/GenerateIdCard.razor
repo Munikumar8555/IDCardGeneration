@@ -1,0 +1,249 @@
+@page "/generate-id-card" 
+@using BlazorWebApp.Data
+@using BlazorWebApp.Services
+@using Microsoft.AspNetCore.Components
+@using Microsoft.EntityFrameworkCore
+@inject IdDetailsDbContext DbContext
+@inject UserSessionService UserSessionService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<!--
+    Add this to wwwroot/index.html (Blazor WASM) or Pages/_Host.cshtml (Blazor Server):
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+-->
+
+<style>
+    .id-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        position: relative;
+        overflow: hidden;
+        border: 1px solid #e5e7eb;
+        background: linear-gradient(135deg, #f9f9f9 0%, #ffffff 100%);
+    }
+    .id-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 40px;
+        background: linear-gradient(90deg, #1a3e8c 0%, #2563eb 100%);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .id-card::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 10px;
+        background: linear-gradient(90deg, #1a3e8c 0%, #2563eb 100%);
+    }
+    .id-photo {
+        width: 100px;
+        height: 120px;
+        border-radius: 3px;
+        border: 1px solid #e5e7eb;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        object-fit: cover;
+        background-color: #f9fafb;
+        position: relative;
+    }
+    .qr-code {
+        width: 60px;
+        height: 60px;
+        background-color: #f3f4f6;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+    }
+    .hologram {
+        width: 60px;
+        height: 30px;
+        background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0) 100%);
+        position: absolute;
+        right: 20px;
+        top: 60px;
+        opacity: 0.6;
+        transform: rotate(-20deg);
+        border-radius: 50%;
+        box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        animation: hologram 3s infinite;
+    }
+    .ContentInIDCard
+    {
+        padding-left: 20px;
+        flex: 1;
+    }
+    @@keyframes hologram {
+        0% { opacity: 0.4; transform: rotate(-20deg); }
+        50% { opacity: 0.8; transform: rotate(-15deg); }
+        100% { opacity: 0.4; transform: rotate(-20deg); }
+    }
+    .company-logo {
+        position: absolute;
+        top: 5px;
+        left: 10px;
+        width: 30px;
+        height: 30px;
+        background-color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #2563eb;
+        font-size: 12px;
+    }
+    .barcode {
+        height: 40px;
+        background: repeating-linear-gradient(90deg, #000, #000 1px, transparent 1px, transparent 3px);
+        background-size: 4px 100%;
+        margin-top: 10px;
+    }
+    .custom-form-button {
+    display: inline-block;
+    background-color: #007bff;
+    color: white;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.custom-form-button:hover {
+    background-color: #0056b3;
+    color: white;
+}
+
+</style>
+
+    <div class="container-fluid d-flex justify-content-center align-items-center" style=" margin-right: 312px
+    ;">
+        <div class="d-flex flex-column align-items-center">
+            <h1 class="display-5 fw-bold text-primary mb-4">ID Card Generator</h1>
+            <div class="w-100" style="max-width: 420px;">
+                <h2 class="h5 fw-semibold text-dark mb-3 text-center">Your ID Card</h2>
+                <div id="idCardToPrint" class="id-card p-4 position-relative mb-4">
+                    <div class="company-logo">NF</div>
+                <div class="absolute top-2 right-3 text-white text-xs font-bold">OFFICIAL ID</div>
+                     <div class="hologram">Identification Card</div>
+                    <!-- <div class="position-absolute top-0 end-0 m-2 text-white small fw-bold">OFFICIAL ID</div> -->
+                    <div class="d-flex align-items-start p-2 pt-4">
+                        <div class="me-3 d-flex flex-column align-items-center">
+                            <div class="position-relative">
+                                <img src="@photoSrc" class="id-photo mb-2 border border-primary border-2 p-2" />
+                                <div class="position-absolute w-100 start-0 end-0 translate-middle-y bg-primary text-white text-center py-1 small fw-bold" style="font-size:8px; bottom:-8px;">VALID PHOTO ID</div>
+                            </div>
+                            <div class="barcode w-100"></div>
+                        </div>
+                        <div class="ContentInIDCard">
+                            <div class="small text-primary fw-bold mb-1 text-uppercase">NAFA CORPORATION</div>
+                            <h3 class="h6 fw-bold text-dark mb-1">@user?.Name</h3>
+                            <div class="small text-secondary mb-2">Employee ID: <span class="font-monospace fw-bold text-dark">@user?.Id</span></div>
+                            <div class="border-top pt-2">
+                                <div class="row g-2 small">
+                                    <div class="col-6">
+                                        <div class="text-secondary text-uppercase fw-bold" style="font-size:10px;">Department</div>
+                                        <div class="fw-medium">@user?.Department</div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="text-secondary text-uppercase fw-bold" style="font-size:10px;">Position</div>
+                                        <div class="fw-medium">@user?.Designation</div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="text-secondary text-uppercase fw-bold" style="font-size:10px;">Issued Date</div>
+                                        <div class="fw-medium">@DateTime.Now.ToString("MM/dd/yyyy")</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="position-absolute bottom-0 end-0 m-3 d-flex align-items-center">
+                        <div class="qr-code bg-white p-1 border border-secondary shadow-sm">
+                            <i class="fas fa-qrcode text-secondary fs-4"></i>
+                        </div>
+                        <div class="ms-2" style="font-size:9px; color:#6c757d; text-align:right;">
+                            <div class="fw-bold">SCAN TO VERIFY</div>
+                            <div class="font-monospace fw-bold text-dark">ID# <span>@user?.Id</span></div>
+                        </div>
+                    </div>
+                    <div class="position-absolute bottom-0 start-0 m-3">
+                        <div style="font-size:10px; color:#6c757d;">
+                            <div class="fw-bold">Authorized Signature: <span class="fst-italic border-bottom border-secondary">________________</span></div>
+                            <div class="mt-1 p-1 rounded bg-light" style="font-size:8px;">This card is property of ACME Corp. Must be returned upon termination.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="d-flex justify-content-center gap-3 mt-3">
+    <!-- Download Button -->
+    <button class="btn btn-success d-flex align-items-center px-4 py-2" @onclick="DownloadPdf">
+        <i class="fas fa-print me-2"></i> Download
+    </button>
+
+    <!-- Back Button Styled to Match -->
+    <a href="/nextpage" class="btn btn-info d-flex align-items-center px-4 py-2" style="margin-left: 10px;  ">
+        <i class="fas fa-arrow-left me-2"></i> Back
+    </a>
+</div>
+
+            </div>
+        </div>
+    </div>
+
+@code {
+    private RegistrationModel user;
+    private string photoSrc = "images/placeholder.png";
+    private string userCreated = "";
+    private bool _downloadPdfRequested = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var email = await UserSessionService.GetCurrentUserEmailAsync();
+        if (!string.IsNullOrEmpty(email))
+        {
+            user = await DbContext.Registrations.FirstOrDefaultAsync(u => u.Email == email);
+            if (user != null)
+            {
+                // Try to get the latest UserFile for the user
+                var file = await DbContext.UserFiles.Where(f => f.RegistrationModelId == user.Id)
+                                  .OrderByDescending(f => f.UploadedAt)
+                                  .FirstOrDefaultAsync();
+                if (file != null && file.Data != null)
+                {
+                    photoSrc = $"data:{file.ContentType};base64,{Convert.ToBase64String(file.Data)}";
+                }
+                else if (user.ProfileImage != null)
+                {
+                    photoSrc = $"data:image/png;base64,{Convert.ToBase64String(user.ProfileImage)}";
+                }
+                // Use user's registration date if available
+                if (user.CreatedAt != null)
+                    userCreated = user.CreatedAt.ToString("MM/dd/yyyy");
+                else
+                    userCreated = DateTime.Now.ToString("MM/dd/yyyy");
+            }
+        }
+    }
+
+    private async Task DownloadPdf()
+    {
+        _downloadPdfRequested = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_downloadPdfRequested && !firstRender)
+        {
+            _downloadPdfRequested = false;
+            await JS.InvokeVoidAsync("downloadIdCardPdf", "idCardToPrint", "IDCard.pdf");
+        }
+    }
+}

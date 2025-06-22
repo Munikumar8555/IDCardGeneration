@@ -1,0 +1,139 @@
+@page "/register"
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Forms
+@using BlazorWebApp.Data
+@using BlazorWebApp.Services
+@using BlazorWebApp.Shared
+@inject IdDetailsDbContext DbContext
+@inject NavigationManager Navigation
+@inject EmailService EmailService
+
+<div class="custom-form-bg">
+    <div class="custom-form-container">
+        <h2 class="custom-form-title">Register</h2>
+        <EditForm Model="registrationModel" OnValidSubmit="HandleValidSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+            <div class="custom-form-group">
+                <label>Name :</label>
+                <InputText class="custom-form-input" @bind-Value="registrationModel.Name" />
+                <ValidationMessage For="@(() => registrationModel.Name)" />
+            </div>
+            <div class="custom-form-group">
+                <label>Number :</label>
+                <InputText class="custom-form-input" @bind-Value="registrationModel.Number" />
+                <ValidationMessage For="@(() => registrationModel.Number)" />
+            </div>
+            <div class="custom-form-group">
+                <label>Email :</label>
+                <InputText class="custom-form-input" @bind-Value="registrationModel.Email" />
+                <ValidationMessage For="@(() => registrationModel.Email)" />
+            </div>
+            <button type="submit" class="custom-form-btn">Register</button>
+        </EditForm>
+        <div style="text-align:right; margin-top: 0.5rem;">
+            <a href="/login" class="custom-form-link">Back to Login</a>
+        </div>
+        @if (emailSent)
+        {
+            <div class="alert alert-success">A verification email has been sent to your email address. Please check your inbox.</div>
+            <div class="alert alert-info">(Simulated) Verification link: <a href="@verificationLink">@verificationLink</a></div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            if (errorMessage.Contains("3D000") && errorMessage.Contains("does not exist"))
+            {
+                <div class="alert alert-danger">
+                    The registration system is not ready: the database does not exist.<br />
+                    Please ask the administrator to create the database <b>IdDetails</b> in PostgreSQL.<br />
+                    <pre>CREATE DATABASE "IdDetails";</pre>
+                </div>
+            }
+            else
+            {
+                <div class="alert alert-danger">Error: @errorMessage</div>
+            }
+        }
+        <Toast Show="showToast" Message="@toastMessage" ToastType="@toastType" />
+    </div>
+</div>
+
+@code {
+    private RegistrationModel registrationModel = new RegistrationModel();
+    private bool emailSent = false;
+    private string verificationLink;
+    private string errorMessage;
+    private bool showToast = false;
+    private string toastMessage = string.Empty;
+    private string toastType = "success";
+    private void GoToLogin() => Navigation.NavigateTo("/login");
+
+    private async Task HandleValidSubmit()
+    {
+        try
+        {
+            // Check if user already exists
+            var existingUser = DbContext.Registrations.FirstOrDefault(u => u.Email == registrationModel.Email);
+            if (existingUser != null)
+            {
+                toastMessage = "User already exists. Go to login page.";
+                toastType = "error";
+                showToast = true;
+                StateHasChanged();
+                await Task.Delay(3000);
+                showToast = false;
+                StateHasChanged();
+                return;
+            }
+            // Generate a simple token
+            var token = Guid.NewGuid().ToString();
+            // Save to DB
+            var entity = new BlazorWebApp.Data.RegistrationModel
+            {
+                Name = registrationModel.Name,
+                Number = registrationModel.Number,
+                Email = registrationModel.Email,
+                EmailVerified = false,
+                VerificationToken = token,
+                CreatedAt = DateTime.UtcNow // Set registration date
+            };
+            DbContext.Registrations.Add(entity);
+            await DbContext.SaveChangesAsync();
+            // Generate verification link
+            verificationLink = Navigation.BaseUri + "verify-email/" + token;
+            // Send real email
+            await EmailService.SendVerificationEmailAsync(
+                registrationModel.Email,
+                verificationLink);
+            emailSent = true;
+            errorMessage = null;
+            toastMessage = "Registration successful! Verification email sent.";
+            toastType = "success";
+        }
+        catch (Exception ex)
+        {
+            emailSent = false;
+            verificationLink = null;
+            errorMessage = ex.Message;
+            toastMessage = $"Registration failed: {ex.Message}";
+            toastType = "error";
+        }
+        showToast = true;
+        StateHasChanged();
+        await Task.Delay(3000);
+        showToast = false;
+        StateHasChanged();
+    }
+
+    public class RegistrationModel
+    {
+        [Required]
+        public string Name { get; set; }
+        [Required]
+        public string Number { get; set; }
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; }
+    }
+}

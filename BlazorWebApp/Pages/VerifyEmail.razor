@@ -1,0 +1,31 @@
+@page "/verify-email/{token}"
+
+<div class="container-fluid d-flex justify-content-center align-items-center" style=" margin-right: 312px
+    ;">
+    <div class="w-100" style="max-width: 400px;">
+        <h3 class="text-center">Email Verification</h3>
+        @if (verified)
+        {
+            <div class="alert alert-success text-center">Your email has been verified! Please <a href="/set-password/@token">set your password</a>.</div>
+        }
+        else
+        {
+            <div class="alert alert-danger text-center">Invalid or expired verification link.</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string token { get; set; }
+    private bool verified = false;
+
+    protected override void OnInitialized()
+    {
+        // TODO: Validate the token (simulate success for now)
+        if (!string.IsNullOrEmpty(token))
+        {
+            verified = true;
+        }
+    }
+}
